@@ -2,6 +2,7 @@ const express = require('express')
 const app = express()
 const cors = require('cors')
 require('dotenv').config()
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000
 
 // middleware 
@@ -36,7 +37,24 @@ async function run() {
     // User Related Api 
     const userCollection = client.db('bistroDb').collection('users')
 
-    app.get('/users', async(req, res)=>{
+    // MiddleWare for verify users token 
+    const verifyToken =(req, res, next)=>{
+      console.log('Inside middleware',req.headers.authorization);
+      if(!req.headers.authorization){
+        return res.status(401).send({message:'Forbidden Acces'})        
+      }
+      const token = req.headers.authorization.split(' ')[1]
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
+        if(err){
+          return res.status(401).send({message: "Forbidden Access"})
+        }
+        req.decoded = decoded
+        next()
+      })
+    }
+
+    app.get('/users', verifyToken, async(req, res)=>{
+      // console.log(req.headers);
       const result = await userCollection.find().toArray()
       res.send(result)
     })
@@ -54,6 +72,28 @@ async function run() {
       res.send(result);
     })
 
+    // Jwt Releted APis 
+    app.post('/jwt', async(req, res)=>{
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {expiresIn:'1h'})
+      res.send({token})
+    })
+
+
+
+
+    //  Admin Apis 
+    app.patch('/users/admin/:id', async(req, res)=>{
+      const id = req.params.id;
+      const filter = {_id: new ObjectId(id)}
+      const updatedDoc ={
+        $set:{
+          role: 'admin'
+        }
+      }
+      const result = await userCollection.updateOne(filter, updatedDoc)
+      res.send(result)
+    })
 
     // Cart Collection 
     const cartCollection = client.db('bistroDb').collection('carts')
