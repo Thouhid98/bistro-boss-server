@@ -26,20 +26,29 @@ async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
+    // Menu Realted Apis 
+    // const menuCollection = client.db('bistroDb').collection('menu')
 
-    const menuCollection = client.db('bistroDb').collection('menu')
+    // app.get('/menu', async (req, res) => {
+    //   const result = await menuCollection.find().toArray();
+    //   res.send(result)
+    // })
 
-    app.get('/menu', async (req, res) => {
-      const result = await menuCollection.find().toArray();
-      res.send(result)
-    })
+    // app.post('/menu', verifyToken, verifyAdmin, async(req, res)=>{
+    //   const item = req.body;
+    //   const result = await menuCollection.insertOne(item);
+    //   res.send(result);
+    // })
+
+
+
 
     // User Related Api 
     const userCollection = client.db('bistroDb').collection('users')
 
     // MiddleWare for verify users token 
     const verifyToken = (req, res, next) => {
-      console.log('Inside middleware', req.headers.authorization);
+      // console.log('Inside middleware', req.headers.authorization);
       if (!req.headers.authorization) {
         return res.status(401).send({ message: 'Forbidden Acces' })
       }
@@ -54,13 +63,13 @@ async function run() {
     }
 
     // Verify Admin 
-    const verifyAdmin = async(req, res, next)=>{
+    const verifyAdmin = async (req, res, next) => {
       const email = req.decoded.email;
-      const query = {email: email}
+      const query = { email: email }
       const user = await userCollection.findOne(query)
       const isAdmin = user?.role === 'admin';
-      if(!isAdmin){
-        return res.status(403).send({message: 'Forbidden Access'})
+      if (!isAdmin) {
+        return res.status(403).send({ message: 'Forbidden Access' })
       }
       next();
     }
@@ -112,11 +121,8 @@ async function run() {
       res.send({ token })
     })
 
-
-
-
     //  Admin Apis 
-    app.patch('/users/admin/:id',verifyToken, verifyAdmin, async (req, res) => {
+    app.patch('/users/admin/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) }
       const updatedDoc = {
@@ -127,6 +133,44 @@ async function run() {
       const result = await userCollection.updateOne(filter, updatedDoc)
       res.send(result)
     })
+
+
+
+
+
+    // Menu Realted Apis 
+    const menuCollection = client.db('bistroDb').collection('menu')
+
+    app.get('/menu', async (req, res) => {
+      const result = await menuCollection.find().toArray();
+      res.send(result)
+    })
+
+    app.post('/menu', verifyToken, verifyAdmin, async (req, res) => {
+      const item = req.body;
+      const result = await menuCollection.insertOne(item);
+      res.send(result);
+    })
+
+    app.delete('/menu/:id', verifyToken, verifyAdmin, async(req, res)=>{
+      const id = req.params.id;
+      console.log(id);
+      // const query = {_id: id}
+      const query = {_id: new ObjectId(id) }
+      const result = await menuCollection.deleteOne(query);
+      res.send(result) 
+    })
+
+    // Update Menu Items 
+    // First load the data
+    app.get('/menu/:id', async(req, res)=>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await menuCollection.findOne(query);
+      res.send(result)
+    })
+
+
 
     // Cart Collection 
     const cartCollection = client.db('bistroDb').collection('carts')
