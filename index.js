@@ -135,144 +135,177 @@ async function run() {
       res.send(result)
     })
 
+    // Statistics for Admin 
+    app.get('/admin-stats', verifyToken, verifyAdmin, async (req, res) => {
 
+      const users = await userCollection.estimatedDocumentCount();
+      const menuItems = await menuCollection.estimatedDocumentCount();
+      const orders = await paymentCollection.estimatedDocumentCount()
 
-
-
-    // Menu Realted Apis 
-    const menuCollection = client.db('bistroDb').collection('menu')
-
-    app.get('/menu', async (req, res) => {
-      const result = await menuCollection.find().toArray();
-      res.send(result)
-    })
-
-    app.post('/menu', verifyToken, verifyAdmin, async (req, res) => {
-      const item = req.body;
-      const result = await menuCollection.insertOne(item);
-      res.send(result);
-    })
-
-    app.delete('/menu/:id', verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      console.log(id);
-      // const query = {_id: id}
-      const query = { _id: new ObjectId(id) }
-      const result = await menuCollection.deleteOne(query);
-      res.send(result)
-    })
-
-    // Update Menu Items 
-    //Step 01: First load the data
-    app.get('/menu/:id', async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) }
-      const result = await menuCollection.findOne(query);
-      res.send(result)
-    })
-
-    // Step 02: Update the data 
-    app.patch('/menu/:id', async (req, res) => {
-      const item = req.body;
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) }
-      const updatedDoc = {
-        $set: {
-          name: item.name,
-          category: item.category,
-          price: item.price,
-          recipe: item.recipe,
-          image: item.image
+      // Count Revenue 
+        // const payments = await paymentCollection.find().toArray()
+        // const revenue = payments.reduce((total, payment) => total + payment.price, 0)
+      
+      const result = await paymentCollection.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalRevenue: {
+              $sum: '$price'
+            }
+          }
         }
-      }
-      const result = await menuCollection.updateOne(filter, updatedDoc);
-      res.send(result)
+      ]).toArray()
+      const revenue = result.length > 0 ? result[0].totalRevenue : 0;
+      res.send({ users, menuItems, orders, revenue })
     })
 
 
+      // Menu Realted Apis 
+      const menuCollection = client.db('bistroDb').collection('menu')
 
-
-    // Cart Collection 
-    const cartCollection = client.db('bistroDb').collection('carts')
-
-    app.get('/carts', async (req, res) => {
-      const email = req.query.email;
-      const query = { email: email }
-      const result = await cartCollection.find(query).toArray();
-      res.send(result);
-    })
-
-    app.post('/carts', async (req, res) => {
-      const cartItem = req.body;
-      const result = await cartCollection.insertOne(cartItem);
-      res.send(result)
-    })
-
-    app.delete('/carts/:id', async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) }
-      const result = await cartCollection.deleteOne(query);
-      res.send(result)
-    })
-
-    // Stripe Payment Intent 
-    app.post('/create-payment-intent', async (req, res) => {
-      const { price } = req.body;
-      const amount = parseInt(price * 100);
-      console.log(amount);
-
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount,
-        currency: 'usd',
-        payment_method_types: ['card']
+      app.get('/menu', async (req, res) => {
+        const result = await menuCollection.find().toArray();
+        res.send(result)
       })
 
-      res.send({
-        clientSecret: paymentIntent.client_secret
+      app.post('/menu', verifyToken, verifyAdmin, async (req, res) => {
+        const item = req.body;
+        const result = await menuCollection.insertOne(item);
+        res.send(result);
       })
-    })
 
-    // Save Payment History In the database 
-    const paymentCollection = client.db('bistroDb').collection('payments')
+      app.delete('/menu/:id', verifyToken, verifyAdmin, async (req, res) => {
+        const id = req.params.id;
+        console.log(id);
+        // const query = {_id: id}
+        const query = { _id: new ObjectId(id) }
+        const result = await menuCollection.deleteOne(query);
+        res.send(result)
+      })
 
-    app.post('/payments', async (req, res) => {
-      const payment = req.body
-      const paymentResult = await paymentCollection.insertOne(payment)
-      console.log('Payment Info', payment);
+      // Update Menu Items 
+      //Step 01: First load the data
+      app.get('/menu/:id', async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) }
+        const result = await menuCollection.findOne(query);
+        res.send(result)
+      })
 
-      // Carefully Delete each item from the cart ordered 
-      const query = {
-        _id: {
-          $in: payment.cartId.map(id => new ObjectId(id))
+      // Step 02: Update the data 
+      app.patch('/menu/:id', async (req, res) => {
+        const item = req.body;
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) }
+        const updatedDoc = {
+          $set: {
+            name: item.name,
+            category: item.category,
+            price: item.price,
+            recipe: item.recipe,
+            image: item.image
+          }
         }
-      }
-      const deleteResult = await cartCollection.deleteMany(query)
-      res.send({ paymentResult, deleteResult })
-
-    })
+        const result = await menuCollection.updateOne(filter, updatedDoc);
+        res.send(result)
+      })
 
 
 
 
+      // Cart Collection 
+      const cartCollection = client.db('bistroDb').collection('carts')
+
+      app.get('/carts', async (req, res) => {
+        const email = req.query.email;
+        const query = { email: email }
+        const result = await cartCollection.find(query).toArray();
+        res.send(result);
+      })
+
+      app.post('/carts', async (req, res) => {
+        const cartItem = req.body;
+        const result = await cartCollection.insertOne(cartItem);
+        res.send(result)
+      })
+
+      app.delete('/carts/:id', async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) }
+        const result = await cartCollection.deleteOne(query);
+        res.send(result)
+      })
+
+      // Stripe Payment Intent 
+      app.post('/create-payment-intent', async (req, res) => {
+        const { price } = req.body;
+        const amount = parseInt(price * 100);
+        console.log(amount);
+
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: 'usd',
+          payment_method_types: ['card']
+        })
+
+        res.send({
+          clientSecret: paymentIntent.client_secret
+        })
+      })
+
+      // Save Payment History In the database 
+      const paymentCollection = client.db('bistroDb').collection('payments')
+
+      app.post('/payments', async (req, res) => {
+        const payment = req.body
+        const paymentResult = await paymentCollection.insertOne(payment)
+        console.log('Payment Info', payment);
+
+        // Carefully Delete each item from the cart ordered 
+        const query = {
+          _id: {
+            $in: payment.cartId.map(id => new ObjectId(id))
+          }
+        }
+        const deleteResult = await cartCollection.deleteMany(query)
+        res.send({ paymentResult, deleteResult })
+
+      })
+
+      // shwo user payment history 
+      app.get('/payments/:email', verifyToken, async (req, res) => {
+        const query = { email: req.params.email }
+        if (req.params.email !== req.decoded.email) {
+          return res.status(403).send({ message: 'Forbidden Access' })
+        }
+        const result = await paymentCollection.find(query).toArray()
+        res.send(result)
+
+      })
 
 
-    // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+
+
+
+
+      // Send a ping to confirm a successful connection
+      // await client.db("admin").command({ ping: 1 });
+      console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    } finally {
+      // Ensures that the client will close when you finish/error
+      // await client.close();
+    }
   }
-}
 run().catch(console.dir);
 
 
 
 
-app.get('/', (req, res) => {
-  res.send('Boss is running')
-})
+  app.get('/', (req, res) => {
+    res.send('Boss is running')
+  })
 
-app.listen(port, () => {
-  console.log(`Boss Port ${port}`);
-})
+  app.listen(port, () => {
+    console.log(`Boss Port ${port}`);
+  })
